@@ -1,38 +1,33 @@
-# Stage 1: Build the application
+# Stage 1: Build
 FROM node:20 AS builder
-
 WORKDIR /app
 
-# 1️⃣  Copy only dependency manifests first (keeps layer cache efficient)
+# 1) deps만 먼저 복사해 캐시 최적화
 COPY package*.json ./
+RUN npm ci --ignore-scripts
 
-# 2️⃣  Install deps *without* running any scripts ➜ skips the automatic `prepare`
-RUN npm ci --ignore-scripts            # dev + prod deps, no build yet
-
-# 3️⃣  Now bring in the full source tree (tsconfig.json, src/, …)
+# 2) 전체 소스 복사 후 빌드
 COPY . .
-
-# 4️⃣  Build explicitly – everything is present now
 RUN npm run build
 
-# 5️⃣  Strip dev-dependencies; keeps runtime small
+# 3) 런타임만 남기기
 RUN npm prune --omit=dev
 
-# Stage 2: Create the production image
+# Stage 2: Runtime
 FROM node:20-slim
-
 WORKDIR /app
 
-# 6️⃣  Copy ready-to-run artefacts from builder
+# 빌드 산출물/모듈/메타 복사
 COPY --from=builder /app/build ./build
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 
-# Set executable permissions for the binary
+# 실행 파일 권한
 RUN chmod +x build/index.js
 
-# Expose the port the app runs on
+# (선택) 문서용 노출 포트 — 실제로는 Railway가 PORT 환경변수로 지정
 EXPOSE 8000
 
-# Set the entrypoint to run the MCP server
-CMD ["node", "build/index.js"]
+# ⚠️ 중요: Railway의 PORT로 SSE 모드로 실행
+# JSON 배열 CMD는 ${PORT} 같은 셸 확장이 안 되므로 sh -lc로 감쌉니다.
+ENTRYPOINT ["sh","-lc","node build/index.js --transport sse --host 0.0.0.0 --port ${PORT} --sse-path /sse"]
