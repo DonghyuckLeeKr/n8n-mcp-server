@@ -28,6 +28,9 @@ RUN chmod +x build/index.js
 # (선택) 문서용 노출 포트 — 실제로는 Railway가 PORT 환경변수로 지정
 EXPOSE 8000
 
-# ⚠️ 중요: Railway의 PORT로 SSE 모드로 실행
-# JSON 배열 CMD는 ${PORT} 같은 셸 확장이 안 되므로 sh -lc로 감쌉니다.
-ENTRYPOINT ["sh","-lc","node build/index.js --transport sse --host 0.0.0.0 --port ${PORT} --sse-path /sse"]
+
+# supergateway 설치
+RUN npm i -g supergateway
+
+# stdio → SSE로 게이트웨이 띄우기
+ENTRYPOINT ["sh","-lc","supergateway --stdio \"node build/index.js\" --outputTransport sse --port ${PORT} --ssePath /sse --messagePath /message"]
